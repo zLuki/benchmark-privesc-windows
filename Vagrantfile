@@ -18,9 +18,6 @@ Vagrant.configure("2") do |config|
   # disable shared folder
   config.vm.synced_folder ".", "/vagrant", disabled: true
 
-  # network: static ip
-  config.vm.network "private_network", ip: "192.168.56.50"
-
   # install and configure ssh for Administrator login over key
   config.vm.provision "shell", privileged: true, inline: <<-PS
     # install ssh server
@@ -61,5 +58,12 @@ Vagrant.configure("2") do |config|
     }
     New-ItemProperty @shellParams
   PS
+
+  (1..1).each do |i|
+    config.vm.define "test-#{i}" do |node|
+      node.vm.network "private_network", ip: "192.168.56.#{i+50}"
+      node.vm.hostname = "test-#{i}"
+    end
+  end
 
 end
