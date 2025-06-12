@@ -59,7 +59,7 @@ Vagrant.configure("2") do |config|
     New-ItemProperty @shellParams
   PS
 
-  (1..1).each do |i|
+  (1..2).each do |i|
     config.vm.define "test-#{i}" do |node|
       node.vm.network "private_network", ip: "192.168.56.#{i+50}"
       node.vm.hostname = "test-#{i}"

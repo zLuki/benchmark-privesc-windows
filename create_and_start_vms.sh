@@ -7,7 +7,7 @@ vagrant up
 gawk -i inplace '!/^192.168.56./' ~/.ssh/known_hosts
 
 # check if we can connect to the different machines
-for i in $(seq 1 1); do
+for i in $(seq 1 2); do
     ip=$((50 + i))
     hostname=$(ssh Administrator@192.168.56.$ip hostname)
 

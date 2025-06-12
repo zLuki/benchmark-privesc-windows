@@ -60,4 +60,17 @@
         name: Administrator
         password: "{{ admin_password }}"
 
+- name: Administrator has same password as lowpriv
+  hosts: admin_password_reuse
+  gather_facts: no
+  become: yes
+  become_method: runas
+  become_user: Administrator
+  vars:
+    admin_password: "Trustno1"
+  tasks:
+    - name: Change Administrator's password
+      win_user:
+        name: Administrator
+        password: "{{ admin_password }}"
     
