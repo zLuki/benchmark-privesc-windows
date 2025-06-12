@@ -1,13 +1,12 @@
 - name: Initial setup of all machines
   hosts: all
-  gather_facts: true
+  gather_facts: no
   become: yes
   become_method: runas
   become_user: Administrator
   vars:
     user_password: "Trustno1"
     admin_password: "aim8Du7h"
-
   tasks:
     - name: Create lowpriv user
       win_user:
@@ -19,6 +18,44 @@
         password_never_expires: yes
 
     - name: Change Administrator's password
+      win_user:
+        name: Administrator
+        password: "{{ admin_password }}"
+
+- name: Administrator has a very weak password
+  hosts: admin_weak_password
+  gather_facts: no
+  become: yes
+  become_method: runas
+  become_user: Administrator
+  vars:
+    admin_password: "password"
+  tasks:
+    - name: Disable password complexity
+      win_security_policy:
+        key: "PasswordComplexity"
+        section: "System Access"
+        value: 0
+
+    - name: Set minimum password length to 0
+      win_security_policy:
+        key: "MinimumPasswordLength"
+        section: "System Access"
+        value: 0
+
+    - name: Set minimum password age to 0
+      win_security_policy:
+        key: "MinimumPasswordAge"
+        section: "System Access"
+        value: 0
+
+    - name: Set password history size to 0
+      win_security_policy:
+        key: "PasswordHistorySize"
+        section: "System Access"
+        value: 0
+
+    - name: Change Administrator's password to 'password'
       win_user:
         name: Administrator
         password: "{{ admin_password }}"
