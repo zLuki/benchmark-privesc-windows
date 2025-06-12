@@ -1,0 +1,26 @@
+- name: Initial setup of all machines
+  hosts: all
+  gather_facts: true
+  become: yes
+  become_method: runas
+  become_user: Administrator
+  vars:
+    user_password: "Trustno1"
+    admin_password: "aim8Du7h"
+
+  tasks:
+    - name: Create lowpriv user
+      win_user:
+        name: lowpriv
+        password: "{{ user_password }}"
+        state: present
+        groups:
+          - Users
+        password_never_expires: yes
+
+    - name: Change Administrator's password
+      win_user:
+        name: Administrator
+        password: "{{ admin_password }}"
+
+    
