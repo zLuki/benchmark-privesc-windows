@@ -1,0 +1,180 @@
+<unattend xmlns="urn:schemas-microsoft-com:unattend"
+    xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" data-google-analytics-opt-out="">
+    <settings pass="offlineServicing" />
+    <settings pass="windowsPE">
+        <component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64"
+            publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+            <SetupUILanguage>
+                <UILanguage>en-US</UILanguage>
+            </SetupUILanguage>
+            <InputLocale>0409:00000407</InputLocale>
+            <SystemLocale>en-US</SystemLocale>
+            <UILanguage>en-US</UILanguage>
+            <UserLocale>en-US</UserLocale>
+        </component>
+        <component name="Microsoft-Windows-Setup" processorArchitecture="amd64"
+            publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+            <ImageInstall>
+                <OSImage>
+                    <Compact>false</Compact>
+                </OSImage>
+            </ImageInstall>
+            <UserData>
+                <ProductKey>
+                    <Key>VK7JG-NPHTM-C97JM-9MPGT-3V66T</Key>
+                    <WillShowUI>OnError</WillShowUI>
+                </ProductKey>
+                <AcceptEula>true</AcceptEula>
+            </UserData>
+            <UseConfigurationSet>false</UseConfigurationSet>
+        </component>
+    </settings>
+    <settings pass="generalize" />
+    <settings pass="specialize">
+        <component name="Microsoft-Windows-Deployment" processorArchitecture="amd64"
+            publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+            <RunSynchronous>
+                <RunSynchronousCommand wcm:action="add">
+                    <Order>1</Order>
+                    <Path>powershell.exe -WindowStyle Normal -NoProfile -Command "$xml =
+                        [xml]::new(); $xml.Load('C:\Windows\Panther\unattend.xml'); $sb =
+                        [scriptblock]::Create( $xml.unattend.Extensions.ExtractScript );
+                        Invoke-Command -ScriptBlock $sb -ArgumentList $xml;"</Path>
+                </RunSynchronousCommand>
+                <RunSynchronousCommand wcm:action="add">
+                    <Order>2</Order>
+                    <Path>powershell.exe -WindowStyle Normal -NoProfile -Command "Get-Content
+                        -LiteralPath 'C:\Windows\Setup\Scripts\Specialize.ps1' -Raw |
+                        Invoke-Expression;"</Path>
+                </RunSynchronousCommand>
+                <RunSynchronousCommand wcm:action="add">
+                    <Order>3</Order>
+                    <Path>reg.exe load "HKU\DefaultUser" "C:\Users\Default\NTUSER.DAT"</Path>
+                </RunSynchronousCommand>
+                <RunSynchronousCommand wcm:action="add">
+                    <Order>4</Order>
+                    <Path>powershell.exe -WindowStyle Normal -NoProfile -Command "Get-Content
+                        -LiteralPath 'C:\Windows\Setup\Scripts\DefaultUser.ps1' -Raw |
+                        Invoke-Expression;"</Path>
+                </RunSynchronousCommand>
+                <RunSynchronousCommand wcm:action="add">
+                    <Order>5</Order>
+                    <Path>reg.exe unload "HKU\DefaultUser"</Path>
+                </RunSynchronousCommand>
+            </RunSynchronous>
+        </component>
+    </settings>
+    <settings pass="auditSystem" />
+    <settings pass="auditUser" />
+    <settings pass="oobeSystem">
+        <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64"
+            publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+            <InputLocale>0409:00000407</InputLocale>
+            <SystemLocale>en-US</SystemLocale>
+            <UILanguage>en-US</UILanguage>
+            <UserLocale>en-US</UserLocale>
+        </component>
+        <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64"
+            publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+            <UserAccounts>
+                <LocalAccounts>
+                    <LocalAccount wcm:action="add">
+                        <Name>Administrator</Name>
+                        <DisplayName />
+                        <Group>Administrators</Group>
+                        <Password>
+                            <Value>aim8Du7h</Value>
+                            <PlainText>true</PlainText>
+                        </Password>
+                    </LocalAccount>
+                    <LocalAccount wcm:action="add">
+                        <Name>lowpriv</Name>
+                        <DisplayName />
+                        <Group>Users</Group>
+                        <Password>
+                            <Value>Trustno1</Value>
+                            <PlainText>true</PlainText>
+                        </Password>
+                    </LocalAccount>
+                </LocalAccounts>
+            </UserAccounts>
+            <AutoLogon>
+                <Username>Administrator</Username>
+                <Enabled>true</Enabled>
+                <LogonCount>1</LogonCount>
+                <Password>
+                    <Value>aim8Du7h</Value>
+                    <PlainText>true</PlainText>
+                </Password>
+            </AutoLogon>
+            <OOBE>
+                <ProtectYourPC>3</ProtectYourPC>
+                <HideEULAPage>true</HideEULAPage>
+                <HideWirelessSetupInOOBE>false</HideWirelessSetupInOOBE>
+                <HideOnlineAccountScreens>false</HideOnlineAccountScreens>
+            </OOBE>
+            <FirstLogonCommands>
+                <SynchronousCommand wcm:action="add">
+                    <Order>1</Order>
+                    <CommandLine>powershell.exe -WindowStyle Normal -NoProfile -Command "Get-Content
+                        -LiteralPath 'C:\Windows\Setup\Scripts\FirstLogon.ps1' -Raw |
+                        Invoke-Expression;"</CommandLine>
+                </SynchronousCommand>
+            </FirstLogonCommands>
+        </component>
+    </settings>
+    <Extensions xmlns="https://schneegans.de/windows/unattend-generator/">
+        <ExtractScript> param( [xml] $Document ); foreach( $file in
+            $Document.unattend.Extensions.File ) { $path =
+            [System.Environment]::ExpandEnvironmentVariables( $file.GetAttribute( 'path' ) ); mkdir
+            -Path( $path | Split-Path -Parent ) -ErrorAction 'SilentlyContinue'; $encoding = switch(
+            [System.IO.Path]::GetExtension( $path ) ) { { $_ -in '.ps1', '.xml' } {
+            [System.Text.Encoding]::UTF8; } { $_ -in '.reg', '.vbs', '.js' } {
+            [System.Text.UnicodeEncoding]::new( $false, $true ); } default {
+            [System.Text.Encoding]::Default; } }; $bytes = $encoding.GetPreamble() +
+            $encoding.GetBytes( $file.InnerText.Trim() ); [System.IO.File]::WriteAllBytes( $path,
+            $bytes ); } </ExtractScript>
+        <File path="C:\Windows\Setup\Scripts\Specialize.ps1"> $scripts = @( { net.exe accounts
+            /maxpwage:UNLIMITED; }; ); & { [float] $complete = 0; [float] $increment = 100 /
+            $scripts.Count; foreach( $script in $scripts ) { Write-Progress -Activity 'Running
+            scripts to customize your Windows installation. Do not close this window.'
+            -PercentComplete $complete; '*** Will now execute command «{0}».' -f $( $str =
+            $script.ToString().Trim() -replace '\s+', ' '; $max = 100; if( $str.Length -le $max ) {
+            $str; } else { $str.Substring( 0, $max - 1 ) + '…'; } ); $start = [datetime]::Now; &
+            $script; '*** Finished executing command after {0:0} ms.' -f [datetime]::Now.Subtract(
+            $start ).TotalMilliseconds; "`r`n" * 3; $complete += $increment; } } *>&1 >>
+            "C:\Windows\Setup\Scripts\Specialize.log"; </File>
+        <File path="C:\Windows\Setup\Scripts\UserOnce.ps1"> $scripts = @( { Set-WinHomeLocation
+            -GeoId 14; }; ); & { [float] $complete = 0; [float] $increment = 100 / $scripts.Count;
+            foreach( $script in $scripts ) { Write-Progress -Activity 'Running scripts to configure
+            this user account. Do not close this window.' -PercentComplete $complete; '*** Will now
+            execute command «{0}».' -f $( $str = $script.ToString().Trim() -replace '\s+', ' '; $max
+            = 100; if( $str.Length -le $max ) { $str; } else { $str.Substring( 0, $max - 1 ) + '…';
+            } ); $start = [datetime]::Now; & $script; '*** Finished executing command after {0:0}
+            ms.' -f [datetime]::Now.Subtract( $start ).TotalMilliseconds; "`r`n" * 3; $complete +=
+            $increment; } } *>&1 >> "$env:TEMP\UserOnce.log"; </File>
+        <File path="C:\Windows\Setup\Scripts\DefaultUser.ps1"> $scripts = @( { reg.exe add
+            "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\RunOnce" /v "UnattendedSetup"
+            /t REG_SZ /d "powershell.exe -WindowStyle Normal -NoProfile -Command \""Get-Content
+            -LiteralPath 'C:\Windows\Setup\Scripts\UserOnce.ps1' -Raw | Invoke-Expression;\""" /f;
+            }; ); & { [float] $complete = 0; [float] $increment = 100 / $scripts.Count; foreach(
+            $script in $scripts ) { Write-Progress -Activity 'Running scripts to modify the default
+            user’’s registry hive. Do not close this window.' -PercentComplete $complete; '*** Will
+            now execute command «{0}».' -f $( $str = $script.ToString().Trim() -replace '\s+', ' ';
+            $max = 100; if( $str.Length -le $max ) { $str; } else { $str.Substring( 0, $max - 1 ) +
+            '…'; } ); $start = [datetime]::Now; & $script; '*** Finished executing command after
+            {0:0} ms.' -f [datetime]::Now.Subtract( $start ).TotalMilliseconds; "`r`n" * 3;
+            $complete += $increment; } } *>&1 >> "C:\Windows\Setup\Scripts\DefaultUser.log"; </File>
+        <File path="C:\Windows\Setup\Scripts\FirstLogon.ps1"> $scripts = @( { Set-ItemProperty
+            -LiteralPath 'Registry::HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+            -Name 'AutoLogonCount' -Type 'DWord' -Force -Value 0; }; ); & { [float] $complete = 0;
+            [float] $increment = 100 / $scripts.Count; foreach( $script in $scripts ) {
+            Write-Progress -Activity 'Running scripts to finalize your Windows installation. Do not
+            close this window.' -PercentComplete $complete; '*** Will now execute command «{0}».' -f
+            $( $str = $script.ToString().Trim() -replace '\s+', ' '; $max = 100; if( $str.Length -le
+            $max ) { $str; } else { $str.Substring( 0, $max - 1 ) + '…'; } ); $start =
+            [datetime]::Now; & $script; '*** Finished executing command after {0:0} ms.' -f
+            [datetime]::Now.Subtract( $start ).TotalMilliseconds; "`r`n" * 3; $complete +=
+            $increment; } } *>&1 >> "C:\Windows\Setup\Scripts\FirstLogon.log"; </File>
+    </Extensions>
+</unattend>

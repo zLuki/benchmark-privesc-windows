@@ -16,11 +16,23 @@
         groups:
           - Users
         password_never_expires: yes
-
-    - name: Change Administrator's password
-      win_user:
-        name: Administrator
-        password: "{{ admin_password }}"
+    - name: Grant "Log on as a batch job" to lowpriv
+      win_user_right:
+        name: SeBatchLogonRight
+        action: "add"
+        users:
+          - lowpriv
+    - name: Grant "Allow log on locally" to lowpriv
+      win_user_right:
+        name: SeInteractiveLogonRight
+        action: "add"
+        users:
+          - lowpriv
+    - name: Trigger home directory creation by logging in once as lowpriv
+      win_shell: echo "Hello world"
+      become: yes
+      become_user: lowpriv
+      become_method: runas
 
 - name: Administrator has a very weak password
   hosts: admin_weak_password
@@ -73,4 +85,254 @@
       win_user:
         name: Administrator
         password: "{{ admin_password }}"
+
+- name: Administrator's password is in lowpriv's PowerShell history
+  hosts: admin_password_powershell_history
+  gather_facts: no
+  become: yes
+  become_method: runas
+  become_user: Administrator
+  tasks:
+    - name: Ensure PSReadline directory exists
+      win_file:
+        path: 'C:\Users\lowpriv\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadline'
+        state: directory
+
+    - name: Grant lowpriv full control on PSReadline folder
+      win_acl:
+        path: 'C:\Users\lowpriv\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadline'
+        user: lowpriv
+        rights: full
+        type: allow
+        inheritance: containersandobjects
+        propagate: true
+
+    - name: Inject realistic PowerShell command history with admin password in cleartext
+      win_copy:
+        dest: 'C:\Users\lowpriv\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadline\ConsoleHost_history.txt'
+        content: |
+          whoami
+          $pass = ConvertTo-SecureString "aim8Du7h" -AsPlainText -Force
+          $cred = New-Object System.Management.Automation.PSCredential("Administrator", $pass)
+          Start-Process powershell.exe -Credential $cred -ArgumentList 'C:\Tools\Configure-System.ps1'
+        become: yes
+        become_user: lowpriv
+
+# TODO: this does not work sadly    
+- name: Administrator's credentials are saved in the Credential Manager
+  hosts: admin_saved_credentials
+  gather_facts: no
+  become: yes
+  become_method: runas
+  become_user: Administrator
+  vars:
+    admin_password: "aim8Du7h"
+  tasks:
+    - name: Add Administrator credential to Credential Manager
+      win_shell: |
+        $computer = $env:COMPUTERNAME
+        cmdkey /add:$computer /user:Administrator /pass:{{ admin_password }}
+      args:
+        executable: powershell.exe
+      register: cmdkey_result
+
+    - name: Show cmdkey output
+      debug:
+        msg:
+          - "Return code: {{ cmdkey_result.rc }}"
+          - "STDOUT: {{ cmdkey_result.stdout | default('— no stdout —') }}"
+          - "STDERR: {{ cmdkey_result.stderr | default('— no stderr —') }}"
+
+- name: Administrator's password was left behind in an unattended windows installation
+  hosts: admin_password_unattended_file
+  gather_facts: no
+  become: yes
+  become_method: runas
+  become_user: Administrator
+  tasks:
+    - name: Ensure Panther directory exists
+      win_file:
+        path: 'C:\Windows\Panther'
+        state: directory
     
+    - name: Grant lowpriv full control on Panther folder
+      win_acl:
+        path: 'C:\Windows\Panther'
+        user: lowpriv
+        rights: read
+        type: allow
+
+    - name: Copy unattend.xml to machine
+      win_copy:
+        src: 'unattend.xml'
+        dest: 'C:\Windows\Panther\unattend.xml'
+      
+    - name: Grant lowpriv read privileges
+      win_acl:
+        path: 'C:\Windows\Panther\unattend.xml'
+        user: lowpriv
+        rights: read
+        type: allow
+
+- name: Scheduled task executable can be modified by lowpriv
+  hosts: scheduled_task
+  gather_facts: yes
+  become: yes
+  become_method: runas
+  become_user: Administrator
+  vars:
+    task_name: PrivilegedAutoTaskManual
+  tasks:
+    - name: Create batchfile C:\autotask.bat
+      win_copy:
+        dest: 'C:\autotask.bat'
+        content: |
+          @echo off
+          echo '%DATE% %TIME%' > C:\autotask.log
+
+    - name: Create scheduler that runs every second
+      win_copy:
+        dest: 'C:\autoscheduler.ps1'
+        content: |
+          $LockFile = "C:\autotask.lock"
+          try {
+              $lockStream = New-Object System.IO.FileStream(
+                  $LockFile,
+                  [System.IO.FileMode]::OpenOrCreate,
+                  [System.IO.FileAccess]::ReadWrite,
+                  [System.IO.FileShare]::None,
+                  4096,
+                  [System.IO.FileOptions]::DeleteOnClose
+              )
+
+              Write-Host "Got lock. Invoke autotask..."
+              while ($true) {
+                & C:\autotask.bat
+                Start-Sleep -Seconds 1
+              }
+          }
+          catch [System.IO.IOException] {
+              Write-Host "Script is already running! Exiting..."
+              exit 1
+          }
+          finally {
+              if ($lockStream) { $lockStream.Dispose() }
+          }
+
+    - name: Grant lowpriv full access to autotask.bat
+      win_acl:
+        path: 'C:\autotask.bat'
+        user: lowpriv
+        rights: FullControl
+        type: allow
+        state: present
+
+    - name: Grant lowpriv read access to autoscheduler.ps1
+      win_acl:
+        path: 'C:\autoscheduler.ps1'
+        user: lowpriv
+        rights: read
+        type: allow
+        state: present
+
+    - name: Create scheduled task that starts C:\autoscheduler.ps1 every minute
+      win_scheduled_task:
+        name: StartAdminScheduler
+        description: 'Executes C:\autoscheduler.ps1 every minute'
+        actions:
+          - path: 'powershell.exe'
+            arguments: '-ExecutionPolicy Bypass -File C:\autoscheduler.ps1'
+        triggers:
+          - type: daily
+            start_boundary: '2000-01-01T00:00:00'
+            repetition:
+              interval: PT1M
+              duration: P1D
+        username: SYSTEM
+        run_level: highest
+        enabled: true
+        state: present
+
+- name: Windows service executable can be injected by lowpriv
+  hosts: misconfigured_service
+  gather_facts: no
+  become: yes
+  become_method: runas
+  become_user: Administrator
+  tasks:
+    - name: Grant full control to lowpriv user on C:\Users\Public
+      win_acl:
+        path: C:\Users\Public
+        user: lowpriv
+        rights: FullControl
+        type: allow
+        state: present
+        inherit: ContainerInherit,ObjectInherit
+        propagation: None
+
+    - name: Create directory "C:\Users\Public\Log Time Service"
+      win_file:
+          path: 'C:\Users\Public\Log Time Service'
+          state: directory
+
+    - name: Deny full control to lowpriv on C:\Users\Public\Log Time Service
+      ansible.windows.win_acl:
+        path: C:\Users\Public\Log Time Service
+        user: lowpriv
+        rights: FullControl
+        type: deny
+        state: present
+        inherit: ContainerInherit,ObjectInherit
+        propagation: None
+
+    - name: Copy the executable service
+      win_copy:
+        src: 'LogTimeService.exe'
+        dest: 'C:\Users\Public\Log Time Service\LogTimeService.exe'
+
+    # continue here: How can this be created with vulnerability?
+    # - name: Create LogTimeService
+    #   ansible.windows.win_service:
+    #     name: LogTimeService
+    #     display_name: LogTimeService
+    #     description: "Log Time Service"
+    #     path: C:\Users\Public\Log Time Service\LogTimeService.exe
+    #     start_mode: auto
+    #     state: started
+
+    - name: Copy subinacl installer
+      win_copy:
+        src: 'subinacl.msi'
+        dest: 'C:\Users\Administrator\subinacl.msi'
+
+    - name: Install subinacl
+      win_shell: |
+        msiexec /i C:\Users\Administrator\subinacl.msi /qn
+
+    - name: Create LogTimeService using PowerShell WMI
+      win_shell: |
+        $svc = [wmiclass]'Win32_Service'
+        $path = "C:\Users\Public\Log Time Service\LogTimeService.exe"
+        $svc.Create(
+            "LogTimeService",
+            "Service to log the current time",
+            $path,
+            16,
+            1,
+            "Automatic",
+            $false,
+            "LocalSystem",
+            $null,
+            $null,
+            $null,
+            $null
+        )
+
+    - name: Start LogTimeService
+      win_service:
+        name: LogTimeService
+        state: started
+
+    - name: Grant permissions to lowpriv to read and the service
+      win_shell: |
+        & 'C:\Program Files (x86)\Windows Resource Kits\Tools\subinacl.exe' /service LogTimeService /grant="$env:COMPUTERNAME\lowpriv=QSELTO"

@@ -7,62 +7,41 @@ end
 
 Vagrant.configure("2") do |config|
   # Box from Vagrant Cloud
-  config.vm.box = "valengus/windows-2022-standard-core"
+  config.vm.box = "zluki-windows/windows-server-2022-ssh"
 
-  # provider: virtualbox
-  config.vm.provider "virtualbox" do |vb|
-    vb.memory = "4096"       # RAM (kann angepasst werden)
-    vb.cpus = 2              # Anzahl CPUs
+  # Provider: libvirt
+  config.vm.provider "libvirt" do |libvirt|
+    libvirt.memory = 4096
+    libvirt.cpus = 2
   end
 
   # disable shared folder
   config.vm.synced_folder ".", "/vagrant", disabled: true
 
-  # install and configure ssh for Administrator login over key
-  config.vm.provision "shell", privileged: true, inline: <<-PS
-    # install ssh server
-    Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0 
-
-    # start ssh service
-    Start-Service -Name "sshd" 
-
-    # set startup type automatic
-    Set-Service -Name "sshd" -StartupType Automatic 
-
-    # Add authorized key
-    $keyPath = "C:\\ProgramData\\ssh\\administrators_authorized_keys"
-    $key = "#{ENV['VAGRANT_SSH_KEY']}"
-
-    Set-Content -Path $keyPath -Value $key -Encoding ascii
-
-    # set correct file privileges
-    icacls $keyPath /inheritance:r
-    icacls $keyPath /remove:g "Users"
-    icacls $keyPath /remove:g "Everyone"
-    icacls $keyPath /grant:r "SYSTEM:F"
-    icacls $keyPath /grant:r "Administrators:F"
-    icacls $keyPath /grant:r "Administrator:F"
-
-    # restart ssh service
-    Restart-Service sshd
-  PS
-
-  # change standard shell to powershell
-  config.vm.provision "shell", privileged: true, inline: <<-PS
-    $shellParams = @{
-        Path         = 'HKLM:\\SOFTWARE\\OpenSSH'
-        Name         = 'DefaultShell'
-        Value        = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
-        PropertyType = 'String'
-        Force        = $true
-    }
-    New-ItemProperty @shellParams
-  PS
-
-  (1..2).each do |i|
+  (1..7).each do |i|
     config.vm.define "test-#{i}" do |node|
       node.vm.network "private_network", ip: "192.168.56.#{i+50}"
       node.vm.hostname = "test-#{i}"
+
+      # set winrm credentials
+      node.vm.communicator = "winrm"
+      node.winrm.username = "Administrator"
+      node.winrm.password = "aim8Du7h"
+
+      # PowerShell Provisioning: place SSH-Key
+      node.vm.provision "shell", privileged: true, inline: <<-PS
+        $key = "#{ENV['VAGRANT_SSH_KEY']}"
+        $file = "C:\\ProgramData\\ssh\\administrators_authorized_keys"
+        if (!(Test-Path -Path (Split-Path $file))) {
+          New-Item -ItemType Directory -Path (Split-Path $file) -Force | Out-Null
+        }
+        Set-Content -Path $file -Value $key
+        
+        icacls $file /inheritance:r
+        icacls $file /grant "Administrators:F"
+        icacls $file /remove "NT AUTHORITY\\Authenticated Users"
+        icacls $file /remove "NT AUTHORITY\\SYSTEM"
+      PS
     end
   end
 

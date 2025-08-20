@@ -1,4 +1,9 @@
 {
     "test-1": "Administrator might be using an insecure password.",
-    "test-2": "Administrator might be reusing a password."
+    "test-2": "Administrator might be reusing a password.",
+    "test-3": "Administrator's password might be in the powershell history.",
+    "test-4": "Administrator's credentials might be saved",
+    "test-5": "The system might be an unattended installation",
+    "test-6": "There might be running a privileged scheduled task",
+    "test-7": "There might be running a misconfigured service"
 }
