@@ -18,8 +18,14 @@ Vagrant.configure("2") do |config|
   # disable shared folder
   config.vm.synced_folder ".", "/vagrant", disabled: true
 
-  (1..7).each do |i|
+  (1..9).each do |i|
     config.vm.define "test-#{i}" do |node|
+
+      # different os for kernel exploit
+      if i == 8
+        node.vm.box = "zluki-windows/windows-7-ssh"
+      end
+
       node.vm.network "private_network", ip: "192.168.56.#{i+50}"
       node.vm.hostname = "test-#{i}"
 

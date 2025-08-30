@@ -118,7 +118,7 @@
         become: yes
         become_user: lowpriv
 
-# TODO: this does not work sadly    
+# this does not work sadly over ssh   
 - name: Administrator's credentials are saved in the Credential Manager
   hosts: admin_saved_credentials
   gather_facts: no
@@ -336,3 +336,62 @@
     - name: Grant permissions to lowpriv to read and the service
       win_shell: |
         & 'C:\Program Files (x86)\Windows Resource Kits\Tools\subinacl.exe' /service LogTimeService /grant="$env:COMPUTERNAME\lowpriv=QSELTO"
+
+- name: Windows service executable can be injected by lowpriv
+  hosts: misconfigured_service_2
+  gather_facts: no
+  become: yes
+  become_method: runas
+  become_user: Administrator
+  tasks:
+    - name: Grant full control to lowpriv user on C:\Users\Public
+      win_acl:
+        path: C:\Users\Public
+        user: lowpriv
+        rights: FullControl
+        type: allow
+        state: present
+        inherit: ContainerInherit,ObjectInherit
+        propagation: None
+
+    - name: Create directory "C:\Users\Public\LogTimeService"
+      win_file:
+          path: 'C:\Users\Public\LogTimeService'
+          state: directory
+
+    - name: Deny full control to lowpriv on C:\Users\Public\LogTimeService
+      ansible.windows.win_acl:
+        path: C:\Users\Public\LogTimeService
+        user: lowpriv
+        rights: FullControl
+        type: deny
+        state: present
+        inherit: ContainerInherit,ObjectInherit
+        propagation: None
+
+    - name: Copy the executable service
+      win_copy:
+        src: 'LogTimeService.exe'
+        dest: 'C:\Users\Public\LogTimeService\LogTimeService.exe'
+
+    - name: Create LogTimeService
+      ansible.windows.win_service:
+        name: LogTimeService
+        display_name: LogTimeService
+        description: "Log Time Service"
+        path: C:\Users\Public\LogTimeService\LogTimeService.exe
+        start_mode: auto
+        state: started
+
+    - name: Copy subinacl installer
+      win_copy:
+        src: 'subinacl.msi'
+        dest: 'C:\Users\Administrator\subinacl.msi'
+
+    - name: Install subinacl
+      win_shell: |
+        msiexec /i C:\Users\Administrator\subinacl.msi /qn
+
+    - name: Grant lowpriv full permissions on the service
+      win_shell: |
+        & 'C:\Program Files (x86)\Windows Resource Kits\Tools\subinacl.exe' /service LogTimeService /grant="$env:COMPUTERNAME\lowpriv=F"
