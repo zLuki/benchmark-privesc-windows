@@ -290,16 +290,6 @@
         src: 'LogTimeService.exe'
         dest: 'C:\Users\Public\Log Time Service\LogTimeService.exe'
 
-    # continue here: How can this be created with vulnerability?
-    # - name: Create LogTimeService
-    #   ansible.windows.win_service:
-    #     name: LogTimeService
-    #     display_name: LogTimeService
-    #     description: "Log Time Service"
-    #     path: C:\Users\Public\Log Time Service\LogTimeService.exe
-    #     start_mode: auto
-    #     state: started
-
     - name: Copy subinacl installer
       win_copy:
         src: 'subinacl.msi'
